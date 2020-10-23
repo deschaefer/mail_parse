@@ -1,12 +1,13 @@
 {
-  "name": "play",
+  "name": "parse-mail",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "scripts": {},
   "dependencies": {
+    "@azure/storage-blob": "^12.0.0",
+    "@types/dotenv": "^4.0.3",
+    "dotenv": "^6.0.0",
     "htmlparser2": "5.0.0"
   },
   "keywords": [],
