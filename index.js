@@ -16,16 +16,23 @@ function traverse(an_array) {
                 first_tr.children.forEach(function (element2) {
                     if (element2.type = "tag") {
                         if (element2.name == "tr" && count > 0) {
-                            if (rval.length > 0) {
-                                rval = rval + ',';
+
+                            var partner_name = element2.children[1].children[1].children[0].data;
+                            partner_name = partner_name.trim();
+
+                            if (partner_name.length > 0) {
+                                var last_file_name = element2.children[3].children[1].children[0].data;
+                                last_file_name = last_file_name.trim();
+
+                                var recvd_date = element2.children[5].children[1].children[0].data;
+                                recvd_date = recvd_date.trim();
+
+                                rval = rval
+                                    + '"' + partner_name + '", '
+                                    + '"' + last_file_name + '", '
+                                    + '"' + recvd_date + '"\n';
                             }
 
-                            var data_value = element2.children[1].children[1].children[0].data;
-                            data_value = data_value.trim();
-
-                            if (data_value.length > 0) {
-                                rval = rval + '"' + data_value + '"';
-                            }
                         } else {
                             count++;
                         }
@@ -73,51 +80,27 @@ async function streamToString(readableStream) {
 }
 
 const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+const MAIL_CONTAINER_NAME = process.env.MAIL_CONTAINER_NAME;
+const MAIL_INBOUND_BLOB_NAME = process.env.MAIL_INBOUND_BLOB_NAME;
+const MAIL_OUTBOUND_BLOB_NAME = process.env.MAIL_OUTBOUND_BLOB_NAME;
 
 async function main() {
 
-    // Create the BlobServiceClient object which will be used to create a container client
     const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
 
-    // Create a unique name for the container
-    const containerName = 'quickstart' + uuid();
+    // get the data
+    const containerClient = blobServiceClient.getContainerClient(MAIL_CONTAINER_NAME);
+    const inboundBlockBlobClient = containerClient.getBlockBlobClient(MAIL_INBOUND_BLOB_NAME);
+    const downloadBlockBlobResponse = await inboundBlockBlobClient.download(0);
+    var inbound_data_body = await streamToString(downloadBlockBlobResponse.readableStreamBody)
 
-    console.log('\nCreating container...');
-    console.log('\t', containerName);
+    // parse the data
+    var outbound_data_body = parse_mail_for_partners(inbound_data_body);
 
-    // Get a reference to a container
-    const containerClient = blobServiceClient.getContainerClient(containerName);
+    // write the data
+    const outboundBlockBlobClient = containerClient.getBlockBlobClient(MAIL_OUTBOUND_BLOB_NAME);
+    const uploadBlobResponse = await outboundBlockBlobClient.upload(outbound_data_body, outbound_data_body.length);
 
-    // Create the container
-    const createContainerResponse = await containerClient.create();
-    console.log("Container was created successfully. requestId: ", createContainerResponse.requestId);
-
-
-    // Create a unique name for the blob
-    const blobName = 'quickstart' + uuid() + '.txt';
-
-    // Get a block blob client
-    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-
-    console.log('\nUploading to Azure storage as blob:\n\t', blobName);
-
-    // Upload data to the blob
-    var file_data = "";
-    file_data = fs.readFileSync('sample.html', "utf-8");
-    const uploadBlobResponse = await blockBlobClient.upload(file_data, file_data.length);
-    console.log("Blob was uploaded successfully. requestId: ", uploadBlobResponse.requestId);
-
-    // Get blob content from position 0 to the end
-    // In Node.js, get downloaded data by accessing downloadBlockBlobResponse.readableStreamBody
-    // In browsers, get downloaded data by accessing downloadBlockBlobResponse.blobBody
-    const downloadBlockBlobResponse = await blockBlobClient.download(0);
-    console.log('\nDownloaded blob content...');
-
-    var data_body = await streamToString(downloadBlockBlobResponse.readableStreamBody)
-
-    console.log('\t', data_body);
-
-    console.log(parse_mail_for_partners(data_body));
 }
 
 main().then(() => console.log('Done')).catch((ex) => console.log(ex.message));
